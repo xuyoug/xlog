@@ -106,7 +106,7 @@ func getFmtSize(s string) (size int64, err error) {
 	return 0, nil
 }
 
-//进行当前应该使用的log名的获取
+//getBaseLog进行当前应该使用的log名的获取
 func (x *Xlog) getBaseLog() (d string) {
 	truncnameold := x.truncname
 	if x.Trunc == "" || x.Logname == "" {
@@ -141,7 +141,7 @@ func (x *Xlog) getBaseLog() (d string) {
 	return d
 }
 
-//进行log切换
+//switchlog进行log切换
 func (x *Xlog) switchlog() (is bool) {
 	//判断是否需要根据大小切换
 	//对于自动到达相同log组最后一个的情况，如果需要判断大小仍然进行大小判断，不判断的话就继续写
@@ -184,7 +184,7 @@ func (x *Xlog) switchlog() (is bool) {
 	return true
 }
 
-//检查文件大小是否达到切换标准，达到的话标记一下。不切换的话不标记
+//checkSize检查文件大小是否达到切换标准，达到的话标记一下。不切换的话不标记
 func (x *Xlog) checkSize() {
 	size, err := getFileSize(x.curFile)
 	if x.swcsize != 0 && (size >= x.swcsize || err != nil) {
@@ -192,13 +192,13 @@ func (x *Xlog) checkSize() {
 	}
 }
 
-//判断文件是否存在
+//isExistFile判断文件是否存在
 func (x *Xlog) isExistFile() bool {
 	_, err := os.Stat(x.getBaseLog())
 	return err == nil || os.IsExist(err)
 }
 
-//已经存在相同log组的话到达最后一个log
+//gotoLastFile用于启动时如果已经存在相同log组的话到达最后一个log
 func (x *Xlog) gotoLastFile() {
 	for {
 		if x.isExistFile() {
@@ -213,7 +213,7 @@ func (x *Xlog) gotoLastFile() {
 	}
 }
 
-//Xlog结构体
+//Xlog对象定义
 type Xlog struct {
 	Logname     string
 	curLogname  string
@@ -228,7 +228,7 @@ type Xlog struct {
 	truncname   string
 }
 
-//初始化函数 依次传入：文件名、buf大小、log切换大小格式的字符串、和按时间切换的类型
+//NewXlog初始化函数 依次传入：文件名、buf大小、log切换大小格式的字符串、和按时间切换的类型
 func NewXlog(s string, bufsize int, swcsizes string, tr TruncType) (*Xlog, error) {
 	x := new(Xlog)
 	var err error
@@ -251,8 +251,7 @@ func NewXlog(s string, bufsize int, swcsizes string, tr TruncType) (*Xlog, error
 	return x, err
 }
 
-//Close关闭log对象：关闭缓存chan，关闭ticker
-//注意：要当所有的内容写完之后才会进行关闭
+//Close关闭log对象：关闭缓存chan，关闭ticker 注意：要当所有的内容写完之后才会进行关闭
 func (x *Xlog) Close() (err error) {
 	for {
 		if x.GetBufDep() == 0 {
@@ -266,29 +265,31 @@ func (x *Xlog) Close() (err error) {
 	}
 }
 
-//对外提供，获取缓存chan的深度
+//GetBufDep对外提供，获取缓存chan的深度
 func (x *Xlog) GetBufDep() int {
 	return len(x.c)
 }
 
-//对外提供的3个写入方法
+//WriteString对外提供的3个写入方法之一
 func (x *Xlog) WriteString(s ...interface{}) {
 	tmps := fmt.Sprintln(s...)
 	tmps = time.Now().Format("2006-01-02 15:04:05 ") + tmps
 	x.c <- tmps
 }
 
+//Log对外提供的3个写入方法之一
 func (x *Xlog) Log(s ...interface{}) {
 	x.WriteString(s...)
 }
 
+//Writef对外提供的3个写入方法之一
 func (x *Xlog) Writef(s string, i ...interface{}) {
 	tmps := fmt.Sprintf(s, i...)
 	tmps = time.Now().Format("2006-01-02 15:04:05 ") + tmps
 	x.c <- tmps
 }
 
-//作为独立gorotiune执行  负责获取缓存并写入文件
+//pushlog作为独立gorotiune执行  负责获取缓存并写入文件
 //负责ticker的调度
 //实现无操作时的休眠
 func (x *Xlog) pushlog() {
@@ -317,9 +318,4 @@ func (x *Xlog) pushlog() {
 	}
 }
 
-//错误检查，如遇到错误就打印出来
-func checkErr(err error) {
-	if err != nil {
-		fmt.Println("Error:", err.Error())
-	}
-}
+//God luck！
