@@ -46,13 +46,11 @@ import (
 // fix cpu占用的bug
 // 结构的优化
 
-type TruncType string
-
 const (
-	TruncByday  TruncType = "day"
-	TruncByhour TruncType = "hour"
-	TruncBymin  TruncType = "min"
-	TruncByNo   TruncType = "no"
+	TruncByDay  = "DAY"
+	TruncByHour = "HOUR"
+	TruncByMin  = "MIN"
+	NoTrunc     = "NO"
 )
 
 const (
@@ -109,17 +107,17 @@ func getFmtSize(s string) (size int64, err error) {
 //getBaseLog进行当前应该使用的log名的获取
 func (x *Xlog) getBaseLog() (d string) {
 	truncnameold := x.truncname
-	if x.Trunc == "" || x.Logname == "" {
-		x.Logname = DefaultLogName
+	if x.trunc == "" || x.logname == "" {
+		x.logname = DefaultLogName
 	}
-	switch x.Trunc {
-	case TruncByday:
+	switch strings.ToUpper(x.trunc) {
+	case TruncByDay:
 		x.truncname = time.Now().Format("20060102")
-	case TruncByhour:
+	case TruncByHour:
 		x.truncname = time.Now().Format("2006010215")
-	case TruncBymin:
+	case TruncByMin:
 		x.truncname = time.Now().Format("200601021504")
-	case TruncByNo:
+	case NoTrunc:
 		x.truncname = time.Now().Format("20060102") //不按时间切换的话则按启动日期记录
 	default:
 		x.truncname = ""
@@ -127,7 +125,7 @@ func (x *Xlog) getBaseLog() (d string) {
 	if truncnameold != x.truncname { //按时间切换之后，日志计数重新开始
 		x.curIndex = 0
 	}
-	d = strings.Replace(x.Logname, "{DATE}", x.truncname, -1)
+	d = strings.Replace(x.logname, "{DATE}", x.truncname, -1)
 	d = strings.Replace(d, "{date}", x.truncname, -1)
 
 	if x.swcsize == 0 { //不按大小切换的话，直接不理睬
@@ -154,7 +152,7 @@ func (x *Xlog) switchlog() (is bool) {
 	oldLogname := x.curLogname
 	//判断是否需要根据时间切换
 	var newLogname string
-	if x.Trunc != TruncByNo {
+	if x.trunc != NoTrunc {
 		newLogname = x.getBaseLog()
 	} else {
 		newLogname = oldLogname
@@ -215,13 +213,13 @@ func (x *Xlog) gotoLastFile() {
 
 //Xlog对象定义
 type Xlog struct {
-	Logname     string
+	logname     string
 	curLogname  string
 	curFile     *os.File
 	curIndex    int
 	c           chan string
-	Trunc       TruncType
-	Switchsize  string
+	trunc       string
+	switchsize  string
 	swcsize     int64
 	logCurindex int
 	ticker      *time.Ticker
@@ -229,13 +227,13 @@ type Xlog struct {
 }
 
 //NewXlog初始化函数 依次传入：文件名、buf大小、log切换大小格式的字符串、和按时间切换的类型
-func NewXlog(s string, bufsize int, swcsizes string, tr TruncType) (*Xlog, error) {
+func NewXlog(s string, bufsize int, swcsizes string, tr string) (*Xlog, error) {
 	x := new(Xlog)
 	var err error
-	x.Logname = s
+	x.logname = s
 	x.logCurindex = 0
-	x.Trunc = tr
-	x.Switchsize = swcsizes
+	x.trunc = tr
+	x.switchsize = swcsizes
 	x.swcsize, _ = getFmtSize(swcsizes)
 	x.curIndex = 0
 	x.c = make(chan string, bufsize)
@@ -243,7 +241,7 @@ func NewXlog(s string, bufsize int, swcsizes string, tr TruncType) (*Xlog, error
 		x.gotoLastFile()
 	}
 	x.curLogname = x.getBaseLog()
-	if x.swcsize != 0 || x.Trunc != TruncByNo {
+	if x.swcsize != 0 || x.trunc != NoTrunc {
 		x.ticker = time.NewTicker(time.Millisecond * 200) //每200ms进行一次切换检测
 	}
 	x.curFile, err = os.OpenFile(x.curLogname, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0777)
@@ -254,7 +252,7 @@ func NewXlog(s string, bufsize int, swcsizes string, tr TruncType) (*Xlog, error
 //Close关闭log对象：关闭缓存chan，关闭ticker 注意：要当所有的内容写完之后才会进行关闭
 func (x *Xlog) Close() (err error) {
 	for {
-		if x.GetBufDep() == 0 {
+		if x.BufDep() == 0 {
 			close(x.c)
 			err = x.curFile.Close()
 			x.ticker.Stop()
@@ -266,25 +264,20 @@ func (x *Xlog) Close() (err error) {
 }
 
 //GetBufDep对外提供，获取缓存chan的深度
-func (x *Xlog) GetBufDep() int {
+func (x *Xlog) BufDep() int {
 	return len(x.c)
 }
 
 //WriteString对外提供的3个写入方法之一
-func (x *Xlog) WriteString(s ...interface{}) {
+func (x *Xlog) Println(s ...interface{}) {
 	tmps := fmt.Sprintln(s...)
 	tmps = time.Now().Format("2006-01-02 15:04:05 ") + tmps
 	x.c <- tmps
 }
 
-//Log对外提供的3个写入方法之一
-func (x *Xlog) Log(s ...interface{}) {
-	x.WriteString(s...)
-}
-
 //Writef对外提供的3个写入方法之一
-func (x *Xlog) Writef(s string, i ...interface{}) {
-	tmps := fmt.Sprintf(s, i...)
+func (x *Xlog) Printf(fmts string, i ...interface{}) {
+	tmps := fmt.Sprintf(fmts, i...)
 	tmps = time.Now().Format("2006-01-02 15:04:05 ") + tmps
 	x.c <- tmps
 }
