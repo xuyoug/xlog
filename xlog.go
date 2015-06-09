@@ -11,7 +11,7 @@ import (
 // Curr version 1.2
 // author xuyoug
 // mail:xuyoug@yeah.net
-// 2015-05-26
+// 2015-06-09
 //
 
 // 调用方式
@@ -21,9 +21,8 @@ import (
 // 	if err != nil {
 // 		fmt.Println(err)
 // 	}
-// l.Log("hello", 123, "asd")
-// l.WriteString("test","test")
-// l.Witef("this is %d day",i)
+// l.Println("hello", 123, "asd")
+// l.Printf("this is %d day",i)
 
 // 不定义日志级别（这个东西很坑，大家需求都不一样，请需要的朋友在外层自定义实现）
 // 统一在log每一行前加上了时间，精确到秒
@@ -66,9 +65,8 @@ const (
 )
 
 //getFileSize获取文件大小
-func getFileSize(file *os.File) (size int64, err error) {
-	var tmpfileinfo os.FileInfo
-	tmpfileinfo, err = file.Stat()
+func getFileSize(file *os.File) (int64, error) {
+	tmpfileinfo, err := file.Stat()
 	if err != nil {
 		return 0, err
 	}
@@ -76,14 +74,14 @@ func getFileSize(file *os.File) (size int64, err error) {
 }
 
 //getFmtSize根据设置的大小格式，判断切换大小
-func getFmtSize(s string) (size int64, err error) {
+func getFmtSize(s string) (int64, error) {
 	st := strings.ToUpper(s)
 	if st == "" {
 		return DefaultLogSize, nil
 	}
 	var ts string
 	var ti int64
-	_, err = fmt.Sscanf(st, "%d%s", &ti, &ts)
+	_, err := fmt.Sscanf(st, "%d%s", &ti, &ts)
 	if err != nil {
 		if err == io.EOF {
 			_, err = fmt.Sscanf(st, "%d", &ti)
@@ -203,7 +201,8 @@ func (x *Xlog) isExistFile() bool {
 	return err == nil || os.IsExist(err)
 }
 
-//gotoLastFile用于启动时如果已经存在相同log组的话到达最后一个log
+//gotoLastFile用于启动时检查已经存在的日志序列
+//如果已经存在相同log组的话到达最后一个log
 func (x *Xlog) gotoLastFile() {
 	for {
 		if x.isExistFile() {
@@ -256,7 +255,8 @@ func NewXlog(s string, bufsize int, swcsizes string, tr string) (*Xlog, error) {
 	return x, err
 }
 
-//Close关闭log对象：关闭缓存chan，关闭ticker 注意：要当所有的内容写完之后才会进行关闭
+// Close关闭log对象：关闭缓存chan，关闭ticker
+// 注意：要当所有的内容写完之后才会进行关闭
 func (x *Xlog) Close() (err error) {
 	for {
 		if x.BufDep() == 0 {
