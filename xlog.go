@@ -145,7 +145,7 @@ func (x *Xlog) getBaseLog() (d string) {
 }
 
 //switchlog进行log切换
-func (x *Xlog) switchlog() (is bool) {
+func (x *Xlog) switchlog() bool {
 	//判断是否需要根据大小切换
 	//对于自动到达相同log组最后一个的情况，如果需要判断大小仍然进行大小判断，不判断的话就继续写
 	var err error
@@ -257,7 +257,7 @@ func NewXlog(s string, bufsize int, swcsizes string, tr string) (*Xlog, error) {
 
 // Close关闭log对象：关闭缓存chan，关闭ticker
 // 注意：要当所有的内容写完之后才会进行关闭
-func (x *Xlog) Close() (err error) {
+func (x *Xlog) Close() error {
 	for {
 		if x.BufDep() == 0 {
 			close(x.c)
